@@ -60,7 +60,7 @@ min_a = 100 * min(mat , [] , 'all');
 
 for i = 1:2600
     %create random vector and store into array, lets get creative 
-    bmat = min_a + (max_a - min_a) .* rand( size_mat(1) , 1);
+    bmat = rand( size_mat(1) , 1);
     b_cell(j , cnt) = mat2cell( bmat , size_mat(1) , 1);
     if(cnt == 100)
         j = j + 1;
@@ -74,7 +74,7 @@ end
     %minimizer given A_k and b_i
     
     %gonna need another cell array?
-    
+
     %initialize
     x_true = cell(26,100);
     j = 1;
@@ -95,11 +95,70 @@ end
     % i know too many for loops in this code
     
     %initialize
-    x_ne = cell
+    x_ne = cell(26,100);
+    err_ki_NE = zeros(26,100);
+    j = 1;
+    cnt = 1;
     for i = 1:2600
+        %least squares minimizer
+        x_ne( j , cnt) = mat2cell(method_NormEq_Cholesky( A_cell{j+39} , b_cell{ j, cnt } ),  j + 39 , 1 ) ;
         
+        %relative error
+        err_ki_NE(j,cnt) = norm(x_ne{j,cnt} - x_true{j,cnt}) / norm(x_true{j,cnt});
+        if(cnt == 100)
+            j = j + 1;
+            cnt = 0;
+        end
+        cnt = cnt + 1;
     end
-        
+    
+%% Part 2 c
+%using normal equation solver located in function section least squares
+%minimizer is computed using normal equations
+
+% i know too many for loops in this code
+
+%initialize
+x_qr = cell(26,100);
+err_ki_QR = zeros(26,100);
+j = 1;
+cnt = 1;
+for i = 1:2600
+    x_qr( j , cnt) = mat2cell(method_ThinQR( A_cell{j+39} , b_cell{ j, cnt } ),  1,j + 39,  ) ;
+    
+    %relative error
+    err_ki_QR(j,cnt) = norm(x_qr{j,cnt}-x_true{j,cnt}) / norm(x_true{j,cnt});
+    
+    if(cnt == 100)
+        j = j + 1;
+        cnt = 0;
+    end
+    cnt = cnt + 1;
+end
+
+
+%% Part 3
+
+%for each of QR and Normal equations compute the average error over all the
+%bi
+
+%initialize
+errk_avg_NE = zeros(24,1);
+errk_avg_QR = errk_avg_NE;
+
+%excluding k = 64 and 65 due to the matrices not being sym pos def
+
+for i = 1:26
+    errk_avg_NE(i) = mean(err_ki_NE(i,:));
+    errk_avg_QR(i) = mean(err_ki_QR(i,:));
+end
+
+%% Part 4
+
+%plotting done in plotting section
+
+
+
 %% Display
 
 %Part 1
@@ -113,6 +172,18 @@ for i = 1 : 26
     fprintf('  A_%i         |       %i x %i             |       %i          |       %0.4f       |\n', (i+39), size_ak(i,1), size_ak(i,2), rank_ak(i), cond_ak(i));
     fprintf('------------------------------------------------------------------------\n')
 end
+
+%% Plotting
+%average error versus k for both QR and Normal Equations using semilogy
+
+figure(1)
+semilogy(40:65, errk_avg_NE, '-o', 40:65, errk_avg_QR,'-*')
+
+grid on;
+
+hold off;
+
+
 %% Functions
 
 function [x] = method_NormEq_Cholesky(A,b)
@@ -145,7 +216,15 @@ function [x] = method_NormEq_Cholesky(A,b)
         x = R\(R'\atb); 
         
     else
-        error('Matrix is not Symmetric Positive Definite')
+        %cant use error func for this homework so itll break, if using
+        %outside of hw uncomment
+        %error('Matrix is not Symmetric Positive Definite')
+        
+        %if this error occurs create nan array maybe later could be used as a flag in
+        %error calc
+        siz_atb = size(atb);
+        warning('Error not accounted for due to A_%i'' x A is not pos def', siz_atb(1))
+        x = NaN(siz_atb);
     end 
         
 end
@@ -183,7 +262,7 @@ function [ x ] = method_ThinQR(A, b)
     q = zeros( size_A );
 
 %Grant-Schmidt orthogonalization
-    for j = 1 : size_A(1)
+    for j = 1 : size_A(2)
 
         y = A(:,j); 
 
@@ -194,18 +273,18 @@ function [ x ] = method_ThinQR(A, b)
 
         end
         r(j , j )= norm(y);
-        q(:,j) = v/R(j , j);
+        q(:,j) = y/r(j , j);
 
     end
 
 
     % if this doesnt work just use qr matlab
-    
+    %[q,r] = qr(A, 0);
 % After thin QR is computed, finish computation
     b_til = q'*b;
     
 % Solve
-    x = b_til/r;
+    x = b_til\r;
 
 end
 

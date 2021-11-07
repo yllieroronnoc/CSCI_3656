@@ -38,11 +38,11 @@ size_ak = zeros(26 , 2);
 rank_ak = zeros(26 , 1);
 cond_ak = rank_ak;
 
-for i = 1:26
+for i = 40:65
     curr = cell2mat( A_cell(i) );
-    size_ak(i, :) = size( curr );
-    rank_ak(i) = rank(curr);
-    cond_ak(i) = cond(curr);
+    size_ak(i-39, :) = size( curr );
+    rank_ak(i-39) = rank(curr);
+    cond_ak(i-39) = cond(curr);
 end
 
 %% Part 2 Initialization
@@ -60,7 +60,7 @@ min_a = 100 * min(mat , [] , 'all');
 
 for i = 1:2600
     %create random vector and store into array, lets get creative 
-    bmat = min_a + (max_a - min_a) .* rand( size_mat(1) , 1);
+    bmat = rand( size_mat(1) , 1);
     b_cell(j , cnt) = mat2cell( bmat , size_mat(1) , 1);
     if(cnt == 100)
         j = j + 1;
@@ -96,10 +96,15 @@ end
     
     %initialize
     x_ne = cell(26,100);
+    err_ki_NE = zeros(26,100);
     j = 1;
     cnt = 1;
     for i = 1:2600
+        %least squares minimizer
         x_ne( j , cnt) = mat2cell(method_NormEq_Cholesky( A_cell{j+39} , b_cell{ j, cnt } ),  j + 39 , 1 ) ;
+        
+        %relative error
+        err_ki_NE(j,cnt) = norm(x_ne{j,cnt} - x_true{j,cnt}) / norm(x_true{j,cnt});
         if(cnt == 100)
             j = j + 1;
             cnt = 0;
@@ -114,11 +119,18 @@ end
 % i know too many for loops in this code
 
 %initialize
-x_qr = cell(26,100);
+x_qr_mine = cell(26,100);
+x_qr_matlab = cell(26,100);
+err_ki_QR_bad = zeros(26,100);
+err_ki_QR_good = err_ki_QR_bad;
 j = 1;
 cnt = 1;
 for i = 1:2600
-    x_qr( j , cnt) = mat2cell(method_ThinQR( A_cell{j+39} , b_cell{ j, cnt } ),  1 , j + 39  ) ;
+    x_qr_mine( j , cnt) = mat2cell(method_ThinQR( A_cell{j+39} , b_cell{ j, cnt }, 1 ),  j + 39, 1  ) ;
+    x_qr_matlab( j , cnt) = mat2cell(method_ThinQR( A_cell{j+39} , b_cell{ j, cnt }, 0 ),  j + 39, 1  ) ;
+    %relative error
+    err_ki_QR_bad(j,cnt) = norm(x_qr_mine{j,cnt}-x_true{j,cnt}) / norm(x_true{j,cnt});
+    err_ki_QR_good(j,cnt) = norm(x_qr_matlab{j,cnt}-x_true{j,cnt}) / norm(x_true{j,cnt});
     if(cnt == 100)
         j = j + 1;
         cnt = 0;
@@ -126,19 +138,92 @@ for i = 1:2600
     cnt = cnt + 1;
 end
 
+
+%% Part 3
+
+%for each of QR and Normal equations compute the average error over all the
+%bi
+
+%initialize
+errk_avg_NE = zeros(24,1);
+errk_avg_QR_mine = errk_avg_NE;
+errk_avg_QR_matlab = errk_avg_NE;
+%excluding k = 64 and 65 due to the matrices not being sym pos def
+
+for i = 1:26
+    errk_avg_NE(i) = mean(err_ki_NE(i,:));
+    errk_avg_QR_mine(i) = mean(err_ki_QR_bad(i,:));
+    errk_avg_QR_matlab(i) = mean(err_ki_QR_good(i,:));
+end
+
+%% Part 4
+
+%plotting done in plotting section
+
+
+
 %% Display
 
 %Part 1
 fprintf('\n------------------------------------------------------------------\n')
 fprintf('Problem 1: ')
 fprintf('\n------------------------------------------------------------------\n\n')
-fprintf('theta = 10\n') 
+
 fprintf('      A_k       |     Size (M x N)     |     Rank     |     Condition Number [ K ]     \n')
 fprintf('------------------------------------------------------------------------------------\n')
 for i = 1 : 26
     fprintf('  A_%i         |       %i x %i             |       %i          |       %0.4f       |\n', (i+39), size_ak(i,1), size_ak(i,2), rank_ak(i), cond_ak(i));
     fprintf('------------------------------------------------------------------------\n')
 end
+
+%explanation 
+fprintf('\n------------------------------------------------------------------\n')
+fprintf('Discussion: ')
+fprintf('\n------------------------------------------------------------------\n\n')
+
+%1: the relationship between the error using QR versus the normal equations
+fprintf('1:\n Average error increases for both QR and the normal equations as k increases. Least squares error using normal equations increases\n more drastically than the error using thin qr even with the for k = 64 and k = 65 being ignored\n\n');
+%2: What is the relationship between the errors and the condition number of Ak?
+fprintf('2:\nas stated before, as the condition number of A_k increases the least squares error also increases \n\n')
+%3:  Suppose your matrix A is ill-conditioned. Which method is more favorable?
+fprintf('3:\n looking at the matlab impolementation of thin QR vs NE thin QR is more favorable for ill-conditioned matrices.\n as the condition number increases there is noticiable round off error using cholesky factorization. \nFor this homeowrk, cholesky factorization could not be used for matrices A_64 and A_65 due to them not being sym pos definite. '); 
+
+
+%% Plotting
+%average error versus k for both QR and Normal Equations using semilogy
+
+%my implementation of thin QR
+figure(1)
+semilogy(40:65, errk_avg_NE, '-o', 40:65, errk_avg_QR_mine,'-*')
+hold on;
+title('Average Error versus k for both QR and NE')
+ylabel('Least Squares Error')
+xlabel('Number of columns')
+legend('NE' , 'my own implementation of thin QR');
+grid on;
+hold off;
+
+%matlab implementation of thin QR
+figure(2)
+semilogy(40:65, errk_avg_NE, '-o', 40:65, errk_avg_QR_matlab,'-*')
+hold on;
+title('Average Error versus k for both QR and NE')
+ylabel('Least Squares Error')
+xlabel('Number of columns')
+legend('NE' , 'matlab thin QR');
+grid on;
+hold off;
+
+%condition number  of A_k vs k
+figure(3)
+semilogy(40:65, cond_ak,'-o');
+hold on;
+grid on;
+title('Condition number of A_k vs k')
+ylabel('Condition Number')
+xlabel('Number of Columns')
+hold off;
+
 %% Functions
 
 function [x] = method_NormEq_Cholesky(A,b)
@@ -185,7 +270,7 @@ function [x] = method_NormEq_Cholesky(A,b)
 end
 
 
-function [ x ] = method_ThinQR(A, b)
+function [ x ] = method_ThinQR(A, b, bool)
 %{
     Purpose: Matlab implementation to solve the linear least-squares
     problem using a method based on Thin QR factorization
@@ -193,6 +278,8 @@ function [ x ] = method_ThinQR(A, b)
     Input:
         A: LHS matrix, Ax = b
         b: RHS matrix, Ax = b
+        bool: boolean value, 1 if you want to use my janky code which seems
+        wrong, or built in qr function that works
     Output:
         x: variable matrix x in Ax = b  (x) which minimizes
         ||b-Ax||_2^2
@@ -207,39 +294,40 @@ function [ x ] = method_ThinQR(A, b)
 %compute the thin QR decomposition
 
 
+    if bool
+        %obtain size of A
+            size_A = size(A);
 
-%obtain size of A
-    size_A = size(A);
+        %initialize r matrix. upper right traingular n x n
+            r = zeros(size_A(2),size_A(2));
+        %initialize q tall matrixx orthonormal columns, m x n
+            q = zeros( size_A );
 
-%initialize r matrix. upper right traingular n x n
-    r = zeros(size_A(2),size_A(2));
-%initialize q tall matrixx orthonormal columns, m x n
-    q = zeros( size_A );
+        %Grant-Schmidt orthogonalization
+            for j = 1 : size_A(2)
 
-%Grant-Schmidt orthogonalization
-    for j = 1 : size_A(2)
+                y = A(:,j); 
 
-        y = A(:,j); 
+                for i = 1 : j-1
 
-        for i = 1 : j-1
+                    r(i,j) = q(: , i)' * A(: , j);
+                    y = y - r(i,j) * q(: , i);
 
-            r(i,j) = q(: , i)' * A(: , j);
-            y = y - r(i,j) * q(: , i);
+                end
+                r(j , j )= norm(y);
+                q(:,j) = y/r(j , j);
 
-        end
-        r(j , j )= norm(y);
-        q(:,j) = y/r(j , j);
+            end
+    else
 
+        % if this doesnt work just use qr matlab
+        [q,r] = qr(A, 0);
     end
-
-
-    % if this doesnt work just use qr matlab
-    
-% After thin QR is computed, finish computation
+    % After thin QR is computed, finish computation
     b_til = q'*b;
     
-% Solve
-    x = b_til\r;
+    % Solve
+    x = r\b_til;
 
 end
 
